@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trace Viewer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .tree-line { position: relative; }
+  .tree-line::before {
+    content: ''; position: absolute; left: 12px; top: 0; bottom: 0;
+    width: 2px; background: #e5e7eb;
+  }
+  @keyframes pulse-blue { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .dot-running { animation: pulse-blue 1.5s infinite; }
+  .ansi-strip { white-space: pre-wrap; word-break: break-all; }
+  .event-card { transition: all 0.15s; }
+  .event-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+<div id="app" class="max-w-4xl mx-auto px-4 py-6">
+  <!-- Breadcrumb -->
+  <nav id="breadcrumb" class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+    <span class="cursor-pointer hover:text-gray-900 font-medium" onclick="showRuns()">Runs</span>
+  </nav>
+
+  <!-- Runs View -->
+  <div id="runs-view"></div>
+
+  <!-- Traces View -->
+  <div id="traces-view" class="hidden"></div>
+
+  <!-- Detail View -->
+  <div id="detail-view" class="hidden">
+    <div id="events" class="space-y-2 pb-24"></div>
+  </div>
+</div>
+
+<!-- Control bar -->
+<div id="control-bar" class="hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
+  <div class="max-w-4xl mx-auto px-4 py-3 flex gap-3 items-center">
+    <input id="inject-input" type="text" placeholder="Send a message to the agent..."
+      class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+      onkeydown="if(event.key==='Enter')sendInject()">
+    <button onclick="sendInject()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Send</button>
+    <button onclick="sendStop()" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">Stop</button>
+  </div>
+</div>
+
+<script>
+const strip = s => s ? s.replace(/\x1b\[[0-9;]*m/g, '') : '';
+
+let ws = null;
+let autoScroll = true;
+let currentRun = null;
+let currentFile = null;
+let traceComplete = false;
+let tracesInterval = null;
+
+// --- Runs View ---
+async function showRuns() {
+  clearState();
+  document.getElementById('breadcrumb').innerHTML = `<span class="font-semibold text-gray-900">Runs</span>`;
+  hide('traces-view'); hide('detail-view'); hide('control-bar');
+  show('runs-view');
+
+  const runs = await (await fetch('/api/runs')).json();
+  const el = document.getElementById('runs-view');
+  if (!runs.length) { el.innerHTML = '<p class="text-gray-500">No runs found.</p>'; return; }
+  el.innerHTML = runs.map(r => `
+    <div class="event-card bg-white rounded-xl border border-gray-200 p-5 mb-3 cursor-pointer hover:border-blue-400" onclick="showTraces('${r}')">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 font-semibold text-sm">${r.replace('run_','#')}</div>
+        <div>
+          <div class="font-semibold">${r}</div>
+          <div class="text-xs text-gray-400">Click to view traces</div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// --- Traces View ---
+async function showTraces(run) {
+  clearState();
+  currentRun = run;
+  hide('runs-view'); hide('detail-view'); hide('control-bar');
+  show('traces-view');
+  document.getElementById('breadcrumb').innerHTML = `
+    <span class="cursor-pointer hover:text-gray-900" onclick="showRuns()">Runs</span>
+    <span class="text-gray-300">/</span>
+    <span class="font-semibold text-gray-900">${run}</span>`;
+
+  await renderTraces(run);
+  tracesInterval = setInterval(() => renderTraces(run), 5000);
+}
+
+async function renderTraces(run) {
+  const traces = await (await fetch(`/api/traces/${run}`)).json();
+  const el = document.getElementById('traces-view');
+  if (!traces.length) { el.innerHTML = '<p class="text-gray-500">No traces in this run.</p>'; return; }
+  el.innerHTML = traces.map(t => {
+    const dot = t.status === 'success' ? 'bg-green-500' : t.status === 'failed' ? 'bg-red-500' : 'bg-yellow-400 dot-running';
+    const time = t.timestamp ? new Date(t.timestamp).toLocaleString() : '';
+    return `
+    <div class="event-card bg-white rounded-xl border border-gray-200 p-5 mb-3 cursor-pointer hover:border-blue-400" onclick="showDetail('${run}','${t.file}')">
+      <div class="flex items-center gap-3">
+        <div class="w-3 h-3 rounded-full ${dot} shrink-0"></div>
+        <div class="min-w-0 flex-1">
+          <div class="font-medium truncate">${esc(t.task)}</div>
+          <div class="text-xs text-gray-400 mono">${time}</div>
+        </div>
+        <div class="text-xs px-2 py-1 rounded-full ${t.status === 'success' ? 'bg-green-50 text-green-700' : t.status === 'failed' ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}">${t.status}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// --- Detail View ---
+function showDetail(run, file) {
+  clearState();
+  currentRun = run; currentFile = file; traceComplete = false;
+  hide('runs-view'); hide('traces-view');
+  show('detail-view'); show('control-bar');
+  document.getElementById('events').innerHTML = '';
+  document.getElementById('breadcrumb').innerHTML = `
+    <span class="cursor-pointer hover:text-gray-900" onclick="showRuns()">Runs</span>
+    <span class="text-gray-300">/</span>
+    <span class="cursor-pointer hover:text-gray-900" onclick="showTraces('${run}')">${run}</span>
+    <span class="text-gray-300">/</span>
+    <span class="font-semibold text-gray-900 mono text-xs">${file}</span>`;
+
+  ws = new WebSocket(`ws://${location.host}/ws?run=${run}&file=${file}`);
+  ws.onmessage = e => {
+    try { handleEvent(JSON.parse(e.data)); } catch {}
+  };
+  ws.onclose = () => { ws = null; };
+}
+
+let pendingTurn = null; // buffer model turn to merge with tool_result
+
+function handleEvent(ev) {
+  const el = document.getElementById('events');
+
+  if (ev.type === 'start') {
+    el.insertAdjacentHTML('beforeend', `
+      <div class="bg-white rounded-xl border border-gray-200 p-5 mb-2">
+        <div class="font-semibold text-lg">${esc(ev.task)}</div>
+        <div class="text-xs text-gray-400 mono">${ev.timestamp || ''}</div>
+      </div>`);
+  }
+
+  else if (ev.type === 'turn' && ev.role === 'model') {
+    // Buffer model turn - render it, tool_results will attach below
+    const calls = ev.functionCalls || [];
+    const thinking = ev.content ? `<div class="text-blue-600 text-sm mb-2 mono ansi-strip">${esc(ev.content)}</div>` : '';
+    const callsHtml = calls.map((c, i) => `
+      <div class="tool-call border border-gray-100 rounded-lg overflow-hidden mb-1" data-tool-idx="${i}">
+        <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 cursor-pointer select-none" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="text-purple-600 font-medium text-sm">${esc(c.name)}</span>
+          <span class="text-gray-400 text-xs mono truncate flex-1">${esc(truncArgs(c.args))}</span>
+          <svg class="w-4 h-4 text-gray-400 tool-chevron transition-transform" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+        </div>
+        <div class="tool-result-slot px-3 py-2 hidden"></div>
+      </div>
+    `).join('');
+
+    const id = `turn-${ev.turn}`;
+    el.insertAdjacentHTML('beforeend', `
+      <div id="${id}" class="tree-line pl-7 mb-1">
+        ${thinking}
+        ${callsHtml || '<div class="text-sm text-gray-400 italic">No function calls</div>'}
+      </div>`);
+    pendingTurn = { turn: ev.turn, callIdx: 0 };
+  }
+
+  else if (ev.type === 'turn' && ev.role === 'user') {
+    const isInjected = ev.content && !ev.content.startsWith('Task:');
+    el.insertAdjacentHTML('beforeend', `
+      <div class="tree-line pl-7 mb-1">
+        <div class="text-sm px-3 py-2 rounded-lg ${isInjected ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-gray-100 text-gray-700'}">
+          <span class="font-medium text-xs ${isInjected ? 'text-green-600' : 'text-gray-500'}">${isInjected ? 'injected' : 'user'}</span>
+          <div class="mono ansi-strip mt-1">${esc(ev.content)}</div>
+        </div>
+      </div>`);
+  }
+
+  else if (ev.type === 'tool_result') {
+    // Attach to the last model turn's next tool call slot
+    if (pendingTurn) {
+      const turnEl = document.getElementById(`turn-${pendingTurn.turn}`);
+      if (turnEl) {
+        const slots = turnEl.querySelectorAll('.tool-result-slot');
+        const slot = slots[pendingTurn.callIdx];
+        if (slot) {
+          const ok = ev.exitCode === 0;
+          const stdout = strip(ev.stdout || '');
+          const truncated = stdout.length > 800;
+          const display = truncated ? stdout.slice(0, 800) : stdout;
+          slot.innerHTML = `
+            <div class="flex items-center gap-2 mb-1">
+              <span class="w-2 h-2 rounded-full ${ok ? 'bg-green-500' : 'bg-red-500'}"></span>
+              <span class="text-xs text-gray-500">exit ${ev.exitCode}</span>
+            </div>
+            <pre class="mono text-xs text-gray-600 ansi-strip max-h-48 overflow-auto">${esc(display)}</pre>
+            ${truncated ? `<button class="text-xs text-blue-600 mt-1" onclick="this.previousElementSibling.textContent=this.dataset.full;this.remove()" data-full="${escAttr(stdout)}">Show more</button>` : ''}`;
+          slot.classList.remove('hidden');
+          pendingTurn.callIdx++;
+        }
+      }
+    }
+  }
+
+  else if (ev.type === 'result') {
+    traceComplete = true;
+    el.insertAdjacentHTML('beforeend', `
+      <div class="bg-white rounded-xl border-2 ${ev.success ? 'border-green-400' : 'border-red-400'} p-5 mt-4">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full ${ev.success ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'} flex items-center justify-center font-bold">${ev.success ? '✓' : '✗'}</div>
+          <div>
+            <div class="font-semibold">${ev.success ? 'Completed' : 'Failed'}</div>
+            <div class="text-sm text-gray-600 mono">${esc(ev.summary || '')}</div>
+            <div class="text-xs text-gray-400">${ev.totalTurns || '?'} turns</div>
+          </div>
+        </div>
+      </div>`);
+    disableControls();
+  }
+
+  if (autoScroll) window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+}
+
+function disableControls() {
+  document.getElementById('inject-input').disabled = true;
+  document.querySelectorAll('#control-bar button').forEach(b => { b.disabled = true; b.classList.add('opacity-50'); });
+}
+
+function sendInject() {
+  const input = document.getElementById('inject-input');
+  if (!ws || !input.value.trim() || traceComplete) return;
+  ws.send(JSON.stringify({ action: 'inject', message: input.value.trim() }));
+  input.value = '';
+}
+
+function sendStop() {
+  if (!ws || traceComplete) return;
+  ws.send(JSON.stringify({ action: 'stop' }));
+}
+
+// --- Helpers ---
+function clearState() {
+  if (ws) { ws.close(); ws = null; }
+  if (tracesInterval) { clearInterval(tracesInterval); tracesInterval = null; }
+  pendingTurn = null;
+}
+
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function escAttr(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function truncArgs(args) {
+  if (!args) return '';
+  const s = typeof args === 'string' ? args : JSON.stringify(args);
+  return s.length > 120 ? s.slice(0, 120) + '...' : s;
+}
+
+// Init
+showRuns();
+</script>
+</body>
+</html>
