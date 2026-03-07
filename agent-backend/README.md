@@ -1,6 +1,8 @@
-# Self-Improving Browser Agent
+# Continual Learning Browser Agent
 
-A browser automation system that combines Vercel's Agent Browser with a self-improving loop. The agent attempts a task, and if it fails, an improver analyzes the execution trace + your feedback to rewrite the agent's config and system prompt, then retries.
+If machines are exceeding human intelligence, why are humans still the ones improving them? We propose a shift: machines should improve *themselves*, so that humans are no longer the bottleneck on machine capability.
+
+This project is a proof-of-concept **continual learning interface**. A Browser Agent receives human feedback and rewrites its own system, updating prompts, creating scripts, refining its orchestration via a meta-agent that modifies the very agent it governs. No retraining, but a loop of execution, feedback, and self-revision.
 
 ## Architecture
 
