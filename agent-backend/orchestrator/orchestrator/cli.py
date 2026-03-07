@@ -1,9 +1,36 @@
 import argparse
+import json
 import sys
+import time
 from pathlib import Path
 
 from .runner import run_browser_agent
 from .improver import improve
+
+
+def wait_for_web_feedback(trace_file):
+    """Append a feedback_request event and poll control.json for a response."""
+    trace_path = Path(trace_file)
+    trace_dir = trace_path.parent
+    control_path = trace_dir / "control.json"
+
+    # Append feedback_request event to the trace
+    with open(trace_path, "a") as f:
+        f.write(json.dumps({"type": "feedback_request"}) + "\n")
+
+    # Remove stale control.json
+    control_path.unlink(missing_ok=True)
+
+    print("Waiting for feedback from web UI...")
+    while True:
+        time.sleep(1)
+        if control_path.exists():
+            try:
+                data = json.loads(control_path.read_text())
+                control_path.unlink(missing_ok=True)
+                return data
+            except (json.JSONDecodeError, OSError):
+                continue
 
 
 def main():
@@ -44,19 +71,29 @@ def main():
 
         if result["success"]:
             print("\nAgent thinks task was completed successfully, pls verify!")
-            # sys.exit(0)
 
         # Ask for feedback
         if iteration >= args.max_improvements:
             print(f"\nMax improvement iterations ({args.max_improvements}) reached.")
             break
 
-        print("\nWould you like to improve and retry? (y/n)")
-        user_input = input("Feedback (or 'q' to quit): ").strip()
-
-        if user_input.lower() in ("q", "quit", "exit", "n", "no"):
-            print("Exiting.")
-            break
+        trace_file = result.get("traceFile")
+        if trace_file and Path(trace_file).exists():
+            feedback = wait_for_web_feedback(trace_file)
+            action = feedback.get("action", "")
+            if action in ("quit", "accept"):
+                print(f"User chose: {action}. Exiting.")
+                break
+            user_input = feedback.get("message", "").strip()
+            if not user_input:
+                print("No feedback provided. Exiting.")
+                break
+        else:
+            print("\nWould you like to improve and retry? (y/n)")
+            user_input = input("Feedback (or 'q' to quit): ").strip()
+            if user_input.lower() in ("q", "quit", "exit", "n", "no"):
+                print("Exiting.")
+                break
 
         # Run improvement
         improvement = improve(

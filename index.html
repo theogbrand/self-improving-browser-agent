@@ -49,8 +49,14 @@
     <input id="inject-input" type="text" placeholder="Send a message to the agent..."
       class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm mono focus:outline-none focus:ring-2 focus:ring-blue-500"
       onkeydown="if(event.key==='Enter')sendInject()">
-    <button onclick="sendInject()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Send</button>
-    <button onclick="sendStop()" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">Stop</button>
+    <div id="agent-buttons" class="flex gap-2">
+      <button onclick="sendInject()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Send</button>
+      <button onclick="sendStop()" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">Stop</button>
+    </div>
+    <div id="feedback-buttons" class="flex gap-2 hidden">
+      <button onclick="sendFeedback()" class="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700">Send Feedback</button>
+      <button onclick="sendAccept()" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">Accept</button>
+    </div>
   </div>
 </div>
 
@@ -63,6 +69,7 @@ let currentRun = null;
 let currentFile = null;
 let traceComplete = false;
 let tracesInterval = null;
+let feedbackMode = false;
 
 // --- Runs View ---
 async function showRuns() {
@@ -238,15 +245,60 @@ function handleEvent(ev) {
     disableControls();
   }
 
+  else if (ev.type === 'feedback_request') {
+    el.insertAdjacentHTML('beforeend', `
+      <div class="bg-amber-50 rounded-xl border-2 border-amber-400 p-5 mt-4">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold">?</div>
+          <div>
+            <div class="font-semibold text-amber-800">Feedback Requested</div>
+            <div class="text-sm text-amber-700">Provide feedback to improve the agent, or accept the result.</div>
+          </div>
+        </div>
+      </div>`);
+    enableFeedbackControls();
+  }
+
   if (autoScroll) window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 }
 
 function disableControls() {
+  feedbackMode = false;
   document.getElementById('inject-input').disabled = true;
   document.querySelectorAll('#control-bar button').forEach(b => { b.disabled = true; b.classList.add('opacity-50'); });
+  document.getElementById('feedback-buttons').classList.add('hidden');
+  document.getElementById('agent-buttons').classList.remove('hidden');
+}
+
+function enableFeedbackControls() {
+  feedbackMode = true;
+  traceComplete = false;
+  const input = document.getElementById('inject-input');
+  input.disabled = false;
+  input.placeholder = 'Type feedback to improve the agent...';
+  input.focus();
+  document.querySelectorAll('#control-bar button').forEach(b => { b.disabled = false; b.classList.remove('opacity-50'); });
+  document.getElementById('agent-buttons').classList.add('hidden');
+  document.getElementById('feedback-buttons').classList.remove('hidden');
+  show('control-bar');
+}
+
+function sendFeedback() {
+  const input = document.getElementById('inject-input');
+  if (!ws || !input.value.trim()) return;
+  ws.send(JSON.stringify({ action: 'feedback', message: input.value.trim() }));
+  input.value = '';
+  disableControls();
+}
+
+function sendAccept() {
+  if (!ws) return;
+  ws.send(JSON.stringify({ action: 'accept' }));
+  disableControls();
 }
 
 function sendInject() {
+  if (feedbackMode) { sendFeedback(); return; }
   const input = document.getElementById('inject-input');
   if (!ws || !input.value.trim() || traceComplete) return;
   ws.send(JSON.stringify({ action: 'inject', message: input.value.trim() }));
@@ -263,6 +315,7 @@ function clearState() {
   if (ws) { ws.close(); ws = null; }
   if (tracesInterval) { clearInterval(tracesInterval); tracesInterval = null; }
   pendingTurn = null;
+  feedbackMode = false;
 }
 
 function show(id) { document.getElementById(id).classList.remove('hidden'); }
