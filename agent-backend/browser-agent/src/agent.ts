@@ -1,6 +1,6 @@
 import { GoogleGenAI, HarmBlockThreshold, HarmCategory, type Content, type Part, type SafetySetting } from "@google/genai";
 import { execSync } from "child_process";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync, unlinkSync } from "fs";
 import { resolve } from "path";
 import { toolDeclarations } from "./tools.js";
 import { TraceLogger } from "./trace.js";
@@ -29,6 +29,18 @@ const SAFETY_SETTINGS: SafetySetting[] = [
   HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
   HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
 ].map((category) => ({ category, threshold: HarmBlockThreshold.OFF }));
+
+function checkControl(traceDir: string): { action: string; message?: string } | null {
+  const controlPath = resolve(traceDir, "control.json");
+  if (!existsSync(controlPath)) return null;
+  try {
+    const data = JSON.parse(readFileSync(controlPath, "utf-8"));
+    unlinkSync(controlPath);
+    return data;
+  } catch {
+    return null;
+  }
+}
 
 const MAX_API_RETRIES = 5;
 
@@ -116,6 +128,20 @@ export async function runAgent(
   trace.logTurn("user", `Task: ${task}`);
 
   for (let turn = 0; turn < config.maxTurns; turn++) {
+    const control = checkControl(traceDir);
+    if (control) {
+      if (control.action === "pause") {
+        trace.logResult(false, "Paused by user");
+        console.log("\n[Agent] Paused by user");
+        return { success: false, summary: "Paused by user", traceFile: trace.getFilePath(), turns: trace.getTurnCount() };
+      }
+      if (control.action === "inject" && control.message) {
+        history.push({ role: "user", parts: [{ text: control.message }] });
+        trace.logTurn("user", control.message);
+        console.log(`\n[Agent] Injected message: ${control.message}`);
+      }
+    }
+
     const response = await callWithRetry(() =>
       client.models.generateContent({
         model: config.model,
