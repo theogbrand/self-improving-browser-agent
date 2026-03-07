@@ -64,8 +64,6 @@ agent-browser screenshot --full       # Full page screenshot
 agent-browser screenshot --annotate   # Annotated with element labels
 ```
 
-**File Naming (Critical):** The destination path in the `download` command dictates the final filename. If the user requests informative names (e.g., "X-invoice.pdf"), extract context like the company name from the email/page and use it in the path: `agent-browser download @e1 /Users/ob1/Downloads/march-claims/X-invoice.pdf`
-
 ## Command Chaining
 
 Commands can be chained with `&&` when you don't need intermediate output. **Every chained command MUST include the `agent-browser` prefix** — bare commands like `press`, `wait`, `fill` will fail with "command not found":
@@ -100,7 +98,6 @@ Refs (`@e1`, `@e2`, etc.) are **invalidated** when the page changes. ALWAYS re-s
 
 -   **Immediate Re-evaluation**: Upon receiving user feedback, immediately re-evaluate your current plan and any ongoing actions.
 -   **Prioritize New Constraints**: Actively integrate and prioritize new constraints, preferences, or redirections from the user. If an ongoing action or previously gathered information contradicts the new feedback, discard it and adjust your strategy accordingly.
--   **File Naming & Formatting**: Pay strict attention to user requests regarding file naming, formatting, or directory organization. If asked to name files informatively, you MUST parse the context (e.g., company name, sender) and specify the informative filename in your download command path. Failure to follow naming instructions is a critical error.
 -   **Adapt Search and Extraction Strategy**: When asked for specific types of content (e.g., 'non-obvious', 'research-related', 'non-YC', 'AI research oriented'), actively adapt your search and analysis strategy. This may require deeper exploration, scrolling, filtering using `find all` with specific selectors (e.g., `a:has-text('AI')`), and extracting more nuanced information beyond initial visible elements. Focus on article titles and summaries that directly address the user's specific interests.
 
 ## Session Persistence
@@ -208,11 +205,11 @@ Inside the email thread, you will see these elements:
 - link "Preview attachment Invoice-ABC123.pdf ..." [ref=eZZ]               ← opens preview (AVOID)
 ```
 
-**Use the `button "Download attachment ..."` elements.** These preserve the original filename, but you can override it in your command path.
+**Use the `button "Download attachment ..."` elements.** These preserve the original filename.
 
 ```
-# Download a specific attachment and rename it informatively per user request
-agent-browser download @eYY /Users/ob1/Downloads/march-claims/X-invoice.pdf
+# Download a specific attachment
+agent-browser download @eYY /Users/ob1/Downloads/march-claims/
 
 # Or download all attachments at once
 agent-browser download @eXX /Users/ob1/Downloads/
@@ -222,7 +219,7 @@ If `download` times out waiting for the download event, use `click` instead — 
 ```
 agent-browser click @eYY
 agent-browser wait 3000
-# Note: If you use click, the file will be saved with its default name. Use the 'download' command whenever you need to rename the file.
+# Note: If you use click, the file will be saved with its default name.
 ```
 
 **DO NOT click `link "Preview attachment ..."` elements** — these open the preview overlay with UUID downloads.
@@ -232,7 +229,7 @@ agent-browser wait 3000
 1. **Search**: Fill search box with precise query, press Enter, wait 3000, snapshot with `-i -C`
 2. **Open email thread**: Use `eval` with `td.xY` selector (see above). Do NOT click attachment chips.
 3. **Verify**: Wait 2000, snapshot. Confirm you see `button "Download attachment ..."` elements (thread view), NOT `button "Zoom in"` (preview overlay). If preview opened, close it and retry with `eval`.
-4. **Download**: Use `agent-browser download @e_ref /Users/ob1/Downloads/march-claims/Company-invoice.pdf` on the `button "Download attachment ..."` ref, replacing 'Company' with the actual company name from context. Then `agent-browser wait --download /Users/ob1/Downloads/march-claims/Company-invoice.pdf`
+4. **Download**: Use `agent-browser download @e_ref /Users/ob1/Downloads/march-claims/` on the `button "Download attachment ..."` ref. Then `agent-browser wait --download /Users/ob1/Downloads/march-claims/`
 5. **Next email**: `agent-browser back`, wait 2000, snapshot, repeat from step 2
 
 ### Gmail Popups
