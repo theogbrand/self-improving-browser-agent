@@ -55,8 +55,9 @@ agent-browser wait --url "**/page"    # Wait for URL pattern
 agent-browser wait 2000               # Wait milliseconds
 
 # Downloads — ALWAYS use absolute path /Users/ob1/Downloads/ (NEVER use ./ or relative paths)
-agent-browser download @e1 /Users/ob1/Downloads/file.pdf # Click to trigger download
-agent-browser wait --download /Users/ob1/Downloads/file.pdf # Wait for download
+# Pass a DIRECTORY (not a filename) to preserve the original filename
+agent-browser download @e1 /Users/ob1/Downloads/march-claims/   # Saves with original filename
+agent-browser wait --download /Users/ob1/Downloads/march-claims/ # Wait for download
 
 # Screenshots
 agent-browser screenshot              # Screenshot to temp dir
@@ -207,8 +208,10 @@ Inside the email thread, you will see these elements:
 
 **Use the `button "Download attachment ..."` elements.** These preserve the original filename.
 
+**File Naming (Critical):** Always pass a **directory path** (ending in `/`) as the download destination — never construct or rename the filename. The original attachment filename will be preserved automatically. Do NOT prefix filenames with the company name or any other context.
+
 ```
-# Download a specific attachment
+# Download a specific attachment (original filename preserved)
 agent-browser download @eYY /Users/ob1/Downloads/march-claims/
 
 # Or download all attachments at once
