@@ -149,68 +149,9 @@ agent-browser wait --load networkidle
 agent-browser wait 2000
 ```
 
-### Critical: Opening Gmail Emails from Search Results
+### Gmail Downloads
 
-Gmail email rows often do NOT appear as `link` elements in `snapshot -i`. Use `snapshot -i -C` to capture cursor-interactive elements. The `-C` output shows:
-
-```
-- clickable "Sender, Subject, date, preview..." [ref=eXX]     ← email row (CLICK THIS)
-- clickable "Attachment:filename.pdf" [ref=eYY]                ← attachment chip (DO NOT CLICK)
-```
-
-**NEVER click `clickable "Attachment:..."` elements from search results.** These open a preview overlay that downloads files with UUID names (e.g., `f7d709f6-4fd4-4384-86de-13142810d40e`) instead of the original filename. Similarly, clicking the email row ref from `-C` output may also trigger the preview overlay.
-
-**Use `eval` to open emails reliably (preferred method):**
-
-```
-# Open first email in results
-agent-browser eval 'document.querySelector("tr.zA td.xY").click()'
-
-# Open a specific email by matching content
-agent-browser eval 'Array.from(document.querySelectorAll("tr.zA")).find(r => r.textContent.includes("Cognition")).querySelector("td.xY").click()'
-```
-
-The `td.xY` targets the subject cell specifically, which navigates to the email thread without triggering the attachment preview.
-
-**Verify you're in the email thread (not the preview overlay):**
-- Thread view URL: `#inbox/FMfcg...` or `#search/.../FMfcg...` (message ID hash)
-- Preview overlay URL: `?projector=1` — if you see this, close the preview and try again with `eval`
-- Thread view has: `button "Back to Inbox"`, `button "Reply"`, `button "Download attachment filename.pdf"`
-- Preview overlay has: `button "Previous"`, `button "Zoom in"`, `button "Close"`
-
-### Critical: Downloading Attachments (Correct Method)
-
-**ONLY download from inside the email thread view**, never from search results or preview overlays.
-
-Inside the email thread, you will see these elements:
-```
-- button "Download all attachments" [ref=eXX]                              ← downloads all as zip
-- button "Download attachment Invoice-ABC123.pdf" [ref=eYY]                ← downloads single file
-- link "Preview attachment Invoice-ABC123.pdf ..." [ref=eZZ]               ← opens preview (AVOID)
-```
-
-**Use the `button "Download attachment ..."` elements.** These preserve the original filename, but you can override it in your command path.
-
-```
-# Or download all attachments at once
-agent-browser download @eXX /Users/ob1/Downloads/
-```
-
-If `download` times out waiting for the download event, use `click` instead — Gmail may handle the download asynchronously:
-```
-agent-browser click @eYY
-agent-browser wait 3000
-```
-
-**DO NOT click `link "Preview attachment ..."` elements** — these open the preview overlay with UUID downloads.
-
-### Gmail Download Workflow (Complete)
-
-1. **Search**: Fill search box with precise query, press Enter, wait 3000, snapshot with `-i -C`
-2. **Open email thread**: Use `eval` with `td.xY` selector (see above). Do NOT click attachment chips.
-3. **Verify**: Wait 2000, snapshot. Confirm you see `button "Download attachment ..."` elements (thread view), NOT `button "Zoom in"` (preview overlay). If preview opened, close it and retry with `eval`.
-4. **Download**: Use `agent-browser download @e_ref /Users/ob1/Downloads/march-claims/Company-invoice.pdf` on the `button "Download attachment ..."` ref. Then `agent-browser wait --download /Users/ob1/Downloads/march-claims/Company-invoice.pdf`
-5. **Next email**: `agent-browser back`, wait 2000, snapshot, repeat from step 2
+When you see attachments in Gmail search results, click on them directly to download the files efficiently. This is the fastest way to get attachments without extra navigation.
 
 ### Gmail Popups
 
