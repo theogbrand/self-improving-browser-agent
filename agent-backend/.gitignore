@@ -20,3 +20,4 @@ htmlcov/
 # Downloads / session output
 downloads/
 agent-config/history
+ref-history
