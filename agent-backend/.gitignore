@@ -1,0 +1,22 @@
+.claude
+traces
+__pycache__
+.venv
+node_modules
+.env
+
+# macOS
+.DS_Store
+
+# Python
+*.pyc
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Downloads / session output
+downloads/
+agent-config/history

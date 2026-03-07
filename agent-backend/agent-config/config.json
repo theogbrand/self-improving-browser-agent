@@ -1,0 +1,12 @@
+{
+  "model": "gemini-3.1-pro-preview",
+  "maxTurns": 50,
+  "autoConnect": false,
+  "cdpPort": 9222,
+  "headed": true,
+  "screenshotFrequency": 5,
+  "maxRetryPerAction": 2,
+  "waitAfterNavigation": 2000,
+  "downloadDir": "/Users/ob1/Downloads",
+  "sessionName": "browser-agent"
+}
