@@ -19,6 +19,8 @@
   .ansi-strip { white-space: pre-wrap; word-break: break-all; }
   .event-card { transition: all 0.15s; }
   .event-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .tool-call.collapsed .tool-result-slot { display: none; }
+  .tool-call.collapsed .tool-chevron { transform: rotate(-90deg); }
 </style>
 </head>
 <body class="bg-gray-50 text-gray-900 min-h-screen">
@@ -159,16 +161,20 @@ function handleEvent(ev) {
     // Buffer model turn - render it, tool_results will attach below
     const calls = ev.functionCalls || [];
     const thinking = ev.content ? `<div class="text-blue-600 text-sm mb-2 mono ansi-strip">${esc(ev.content)}</div>` : '';
-    const callsHtml = calls.map((c, i) => `
-      <div class="tool-call border border-gray-100 rounded-lg overflow-hidden mb-1" data-tool-idx="${i}">
+    const callsHtml = calls.map((c, i) => {
+      const cmd = c.args && c.args.command ? c.args.command : '';
+      const fallback = cmd ? '' : esc(truncArgs(c.args));
+      return `
+      <div class="tool-call collapsed border border-gray-100 rounded-lg overflow-hidden mb-1" data-tool-idx="${i}">
         <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 cursor-pointer select-none" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="text-purple-600 font-medium text-sm">${esc(c.name)}</span>
-          <span class="text-gray-400 text-xs mono truncate flex-1">${esc(truncArgs(c.args))}</span>
-          <svg class="w-4 h-4 text-gray-400 tool-chevron transition-transform" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+          <svg class="w-4 h-4 text-gray-400 tool-chevron transition-transform shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+          <span class="text-purple-600 font-medium text-sm shrink-0">${esc(c.name)}</span>
+          <span class="tool-exit-badge text-xs shrink-0"></span>
+          ${cmd ? `<code class="text-xs mono text-gray-700 flex-1 break-all">${esc(cmd)}</code>` : `<span class="text-gray-400 text-xs mono truncate flex-1">${fallback}</span>`}
         </div>
         <div class="tool-result-slot px-3 py-2 hidden"></div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
 
     const id = `turn-${ev.turn}`;
     el.insertAdjacentHTML('beforeend', `
@@ -200,16 +206,16 @@ function handleEvent(ev) {
         if (slot) {
           const ok = ev.exitCode === 0;
           const stdout = strip(ev.stdout || '');
-          const truncated = stdout.length > 800;
-          const display = truncated ? stdout.slice(0, 800) : stdout;
-          slot.innerHTML = `
-            <div class="flex items-center gap-2 mb-1">
-              <span class="w-2 h-2 rounded-full ${ok ? 'bg-green-500' : 'bg-red-500'}"></span>
-              <span class="text-xs text-gray-500">exit ${ev.exitCode}</span>
-            </div>
-            <pre class="mono text-xs text-gray-600 ansi-strip max-h-48 overflow-auto">${esc(display)}</pre>
-            ${truncated ? `<button class="text-xs text-blue-600 mt-1" onclick="this.previousElementSibling.textContent=this.dataset.full;this.remove()" data-full="${escAttr(stdout)}">Show more</button>` : ''}`;
+          // Set exit badge on the header row
+          const badge = slot.closest('.tool-call').querySelector('.tool-exit-badge');
+          if (badge) {
+            badge.className = `text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+            badge.textContent = ok ? 'exit 0' : `exit ${ev.exitCode}`;
+          }
+          slot.innerHTML = `<pre class="mono text-xs text-gray-600 ansi-strip max-h-64 overflow-auto">${esc(stdout)}</pre>`;
           slot.classList.remove('hidden');
+          // Auto-expand on errors
+          if (!ok) slot.closest('.tool-call').classList.remove('collapsed');
           pendingTurn.callIdx++;
         }
       }
