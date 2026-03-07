@@ -126,10 +126,6 @@ When the task is complete, call the `done` tool with:
 
 Be thorough but efficient. Prefer fewer, well-planned actions over many small trial-and-error attempts.
 
-## Gmail: Finding and Downloading Invoice Attachments
-
-Reference skill: `skills/gmail-invoice-download/SKILL.md`
-
 ### Critical: Command Chaining
 
 When chaining with `&&`, EVERY command needs the `agent-browser` prefix. The shell does not know bare commands like `press`, `wait`, `fill`, `snapshot`.
