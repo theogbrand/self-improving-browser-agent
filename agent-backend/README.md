@@ -89,3 +89,10 @@ cd browser-agent && npx tsx src/index.ts --task "Go to HackerNews and find the m
 | Browser agent (Gemini loop) | `browser-agent/src/agent.ts` |
 | Orchestrator entry point | `orchestrator/orchestrator/cli.py` |
 | Self-improvement engine | `orchestrator/orchestrator/improver.py` |
+
+
+Improvements:
+- Run-2 doesn't allow feedback currently
+- For Inbox, can we make a complete clone before searching across all emails and downloading? safer and less likely to make mistakes
+- Side by side view will be better UIUX, chat on left, browser working on right, while still allowing for easy intervention by human
+- when bash commands fail, we should fix them with re-run before executing them to save tokens
