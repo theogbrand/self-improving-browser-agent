@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 import uvicorn
 
 TRACES_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent / "agent-backend" / "traces"
+TRACES_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI()
 

@@ -70,6 +70,8 @@ let currentFile = null;
 let traceComplete = false;
 let tracesInterval = null;
 let feedbackMode = false;
+let eventPollInterval = null;
+let renderedEventCount = 0;
 
 // --- Runs View ---
 async function showRuns() {
@@ -131,9 +133,10 @@ async function renderTraces(run) {
 }
 
 // --- Detail View ---
-function showDetail(run, file) {
+async function showDetail(run, file) {
   clearState();
   currentRun = run; currentFile = file; traceComplete = false;
+  renderedEventCount = 0;
   hide('runs-view'); hide('traces-view');
   show('detail-view'); show('control-bar');
   enableAgentControls();
@@ -145,11 +148,27 @@ function showDetail(run, file) {
     <span class="text-gray-300">/</span>
     <span class="font-semibold text-gray-900 mono text-xs">${file}</span>`;
 
-  ws = new WebSocket(`ws://${location.host}/ws?run=${run}&file=${file}`);
-  ws.onmessage = e => {
-    try { handleEvent(JSON.parse(e.data)); } catch {}
-  };
+  // Load events via REST API and poll for new ones
+  await pollEvents(run, file);
+  eventPollInterval = setInterval(() => pollEvents(run, file), 500);
+
+  // Connect WebSocket for sending control messages (inject/pause/feedback)
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws?run=${run}&file=${file}`);
+  ws.onerror = e => console.error('WebSocket error:', e);
   ws.onclose = () => { ws = null; };
+}
+
+async function pollEvents(run, file) {
+  try {
+    const events = await (await fetch(`/api/trace/${run}/${file}`)).json();
+    while (renderedEventCount < events.length) {
+      handleEvent(events[renderedEventCount]);
+      renderedEventCount++;
+    }
+  } catch (err) {
+    console.error('Poll error:', err);
+  }
 }
 
 let pendingTurn = null; // buffer model turn to merge with tool_result
@@ -357,9 +376,11 @@ function sendPause() {
 function clearState() {
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
   if (tracesInterval) { clearInterval(tracesInterval); tracesInterval = null; }
+  if (eventPollInterval) { clearInterval(eventPollInterval); eventPollInterval = null; }
   if (nextRunPoll) { clearInterval(nextRunPoll); nextRunPoll = null; }
   pendingTurn = null;
   feedbackMode = false;
+  renderedEventCount = 0;
 }
 
 function show(id) { document.getElementById(id).classList.remove('hidden'); }

@@ -41,7 +41,7 @@ source .venv/bin/activate && python server.py   # http://localhost:8000
 
 # Terminal 3: Run a task
 cd agent-backend/orchestrator && source .venv/bin/activate
-python -m orchestrator "Go to Gmail and download this month's invoices (March 2026) for Screenplay Studios (Graphite), Warp.dev, Cognition Labs (Devin)" 
+python -m orchestrator "Go to Gmail and download this month's receipts (March 2026) for Screenplay Studios (Graphite), Warp.dev, Cognition Labs (Devin)" 
 ```
 
 ## Key Paths
