@@ -18,13 +18,18 @@ The orchestrator runs up to 3 attempts (1 initial + 2 improvements) currently bu
 ## Setup
 
 ```bash
-git clone --recurse-submodules https://github.com/theogbrand/self-improving-browser-agent && cd self-improving-browser-agent
+git clone https://github.com/theogbrand/self-improving-browser-agent && cd self-improving-browser-agent
 
-# agent-browser (submodule)
-cd agent-backend/agent-browser && pnpm install && agent-browser install
+# browser agent
+cd agent-backend/browser-agent && npm ci
 
-# orchestrator
-cd ../orchestrator && uv venv .venv && source .venv/bin/activate && uv pip install -e .
+# trace viewer (repo root venv)
+cd ../..
+uv venv .venv && source .venv/bin/activate && uv pip install fastapi uvicorn
+
+# orchestrator (separate venv)
+cd agent-backend/orchestrator
+uv venv .venv && source .venv/bin/activate && uv pip install -e .
 
 # API keys
 export GEMINI_API_KEY="your-key"
@@ -33,15 +38,14 @@ export GEMINI_API_KEY="your-key"
 ## Usage
 
 ```bash
-# Terminal 1: Launch browser with CDP
-/Applications/Brave\ Browser.app/Contents/MacOS/Brave\ Browser --remote-debugging-port=9222
-
-# Terminal 2: Trace viewer
+# Terminal 1: Launch browser with CDP (quit Brave first, or use --user-data-dir for a separate profile)
+/Applications/Brave\ Browser.app/Contents/MacOS/Brave\ Browser --remote-debugging-port=9222 --user-data-dir=/tmp/brave-debug
+# Terminal 2: Trace viewer (from repo root)
 source .venv/bin/activate && python server.py   # http://localhost:8000
 
-# Terminal 3: Run a task
+# Terminal 3: Run a task (from orchestrator dir)
 cd agent-backend/orchestrator && source .venv/bin/activate
-python -m orchestrator "Go to Gmail and download this month's receipts (March 2026) for Screenplay Studios (Graphite), Warp.dev, Cognition Labs (Devin)" 
+python -m orchestrator "Go to Gmail and download this month's receipts (March 2026) for Screenplay Studios (Graphite), Warp.dev, Cognition Labs (Devin)"
 ```
 
 ## Key Paths
