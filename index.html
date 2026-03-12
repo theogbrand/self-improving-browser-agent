@@ -136,6 +136,7 @@ function showDetail(run, file) {
   currentRun = run; currentFile = file; traceComplete = false;
   hide('runs-view'); hide('traces-view');
   show('detail-view'); show('control-bar');
+  enableAgentControls();
   document.getElementById('events').innerHTML = '';
   document.getElementById('breadcrumb').innerHTML = `
     <span class="cursor-pointer hover:text-gray-900" onclick="showRuns()">Runs</span>
@@ -260,6 +261,16 @@ function handleEvent(ev) {
   }
 
   if (autoScroll) window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+}
+
+function enableAgentControls() {
+  feedbackMode = false;
+  const input = document.getElementById('inject-input');
+  input.disabled = false;
+  input.placeholder = 'Send a message to the agent...';
+  document.querySelectorAll('#control-bar button').forEach(b => { b.disabled = false; b.classList.remove('opacity-50'); });
+  document.getElementById('feedback-buttons').classList.add('hidden');
+  document.getElementById('agent-buttons').classList.remove('hidden');
 }
 
 function disableControls() {
