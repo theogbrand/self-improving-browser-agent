@@ -178,19 +178,21 @@ agent-browser wait --load networkidle
 agent-browser wait 2000
 ```
 
-### Gmail Search Operators
+### Gmail Search Operators and Workflow (CRITICAL: AVOID SEARCH LOOPS)
 
-Build a single precise query using Gmail operators. Do NOT run multiple vague searches.
+**Strict Workflow:** Search → Wait & Snapshot → Open Promising Email → Download Attachment → Return to Inbox/Search.
+**Do NOT execute multiple consecutive searches.** If a search yields results, you MUST open the relevant emails and download the attachments before moving on to the next company or search query. Be systematic: search for one entity, download its invoice, then search for the next.
 
+Build a single precise query using Gmail operators:
 - `from:name` - sender name or email
-- `subject:invoice` - words in subject
+- `subject:invoice` - words in subject. Note: Invoices might also be labeled as `receipt`, `bill`, `statement`, or `transaction`. Use `{invoice receipt bill statement}` to match any.
 - `has:attachment` - only with attachments
 - `filename:pdf` - by attachment type
 - `newer_than:30d` - from last N days
 - `after:YYYY/MM/DD` / `before:YYYY/MM/DD` - date range
 - `{term1 term2}` - match ANY term (OR)
 
-Example: `from:brandon subject:invoice {cognition warp} newer_than:30d has:attachment`
+Example: `from:brandon {invoice receipt} {cognition warp} newer_than:30d has:attachment`
 
 If no results, broaden progressively: remove `subject:`, then date filter, then try without `has:attachment`.
 

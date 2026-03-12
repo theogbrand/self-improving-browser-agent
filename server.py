@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Trace viewer server: FastAPI + WebSocket for live trace tailing."""
+"""Trace viewer server: FastAPI + REST polling for live trace viewing."""
 
-import asyncio
 import json
 import sys
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 import uvicorn
 
@@ -71,61 +70,12 @@ async def get_trace(run: str, file: str):
     return events
 
 
-@app.websocket("/ws")
-async def ws_tail(ws: WebSocket):
-    await ws.accept()
-    run = ws.query_params.get("run", "")
-    file = ws.query_params.get("file", "")
-    path = TRACES_DIR / run / file
-    if not path.is_file():
-        await ws.close(1008, "File not found")
-        return
-
-    # Send existing lines
-    offset = 0
-    with open(path, "rb") as f:
-        data = f.read()
-        offset = len(data)
-    for line in data.decode("utf-8", errors="replace").splitlines():
-        line = line.strip()
-        if line:
-            await ws.send_text(line)
-
-    # Tail loop
-    async def tail():
-        nonlocal offset
-        while True:
-            await asyncio.sleep(0.5)
-            try:
-                size = path.stat().st_size
-            except FileNotFoundError:
-                break
-            if size > offset:
-                with open(path, "rb") as f:
-                    f.seek(offset)
-                    new = f.read()
-                    offset += len(new)
-                for line in new.decode("utf-8", errors="replace").splitlines():
-                    line = line.strip()
-                    if line:
-                        await ws.send_text(line)
-
-    async def receive():
-        while True:
-            msg = await ws.receive_text()
-            try:
-                data = json.loads(msg)
-                control_path = TRACES_DIR / run / "control.json"
-                control_path.write_text(json.dumps(data))
-            except Exception:
-                pass
-
-    try:
-        await asyncio.gather(tail(), receive())
-    except WebSocketDisconnect:
-        pass
-    except Exception:
-        pass
+@app.post("/api/control/{run}")
+async def post_control(run: str, request: Request):
+    data = await request.json()
+    control_path = TRACES_DIR / run / "control.json"
+    control_path.write_text(json.dumps(data))
+    return {"ok": True}
 
 
 if __name__ == "__main__":

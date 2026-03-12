@@ -63,7 +63,6 @@
 <script>
 const strip = s => s ? s.replace(/\x1b\[[0-9;]*m/g, '') : '';
 
-let ws = null;
 let autoScroll = true;
 let currentRun = null;
 let currentFile = null;
@@ -152,11 +151,6 @@ async function showDetail(run, file) {
   await pollEvents(run, file);
   eventPollInterval = setInterval(() => pollEvents(run, file), 500);
 
-  // Connect WebSocket for sending control messages (inject/pause/feedback)
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${proto}//${location.host}/ws?run=${run}&file=${file}`);
-  ws.onerror = e => console.error('WebSocket error:', e);
-  ws.onclose = () => { ws = null; };
 }
 
 async function pollEvents(run, file) {
@@ -313,18 +307,28 @@ function enableFeedbackControls() {
   show('control-bar');
 }
 
+async function sendControl(data) {
+  if (!currentRun) return;
+  try {
+    await fetch(`/api/control/${currentRun}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  } catch (err) { console.error('Control error:', err); }
+}
+
 function sendFeedback() {
   const input = document.getElementById('inject-input');
-  if (!ws || !input.value.trim()) return;
-  ws.send(JSON.stringify({ action: 'feedback', message: input.value.trim() }));
+  if (!input.value.trim()) return;
+  sendControl({ action: 'feedback', message: input.value.trim() });
   input.value = '';
   disableControls();
   waitForNextRun();
 }
 
 function sendAccept() {
-  if (!ws) return;
-  ws.send(JSON.stringify({ action: 'accept' }));
+  sendControl({ action: 'accept' });
   disableControls();
   waitForNextRun();
 }
@@ -362,19 +366,18 @@ function waitForNextRun() {
 function sendInject() {
   if (feedbackMode) { sendFeedback(); return; }
   const input = document.getElementById('inject-input');
-  if (!ws || !input.value.trim() || traceComplete) return;
-  ws.send(JSON.stringify({ action: 'inject', message: input.value.trim() }));
+  if (!input.value.trim() || traceComplete) return;
+  sendControl({ action: 'inject', message: input.value.trim() });
   input.value = '';
 }
 
 function sendPause() {
-  if (!ws || traceComplete) return;
-  ws.send(JSON.stringify({ action: 'pause' }));
+  if (traceComplete) return;
+  sendControl({ action: 'pause' });
 }
 
 // --- Helpers ---
 function clearState() {
-  if (ws) { ws.onclose = null; ws.close(); ws = null; }
   if (tracesInterval) { clearInterval(tracesInterval); tracesInterval = null; }
   if (eventPollInterval) { clearInterval(eventPollInterval); eventPollInterval = null; }
   if (nextRunPoll) { clearInterval(nextRunPoll); nextRunPoll = null; }
