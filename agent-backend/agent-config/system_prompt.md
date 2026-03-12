@@ -77,7 +77,7 @@ agent-browser wait 2000               # Wait milliseconds
 
 # Downloads — ALWAYS use absolute path /Users/ob1/Downloads/ (NEVER use ./ or relative paths)
 agent-browser download @e1 /Users/ob1/Downloads/file.pdf # Click to trigger download
-agent-browser wait --download /Users/ob1/Downloads/file.pdf # Wait for download
+agent-browser wait 3000               # Wait for download to complete (do NOT use wait --download as it is fragile)
 
 # Screenshots
 agent-browser screenshot              # Screenshot to temp dir
@@ -115,11 +115,12 @@ Refs (`@e1`, `@e2`, etc.) are **invalidated** when the page changes. ALWAYS re-s
 ## Strategy for Multi-Step Tasks
 
 1.  **Break the task into logical steps. CRITICAL: Use comprehensive searches.** When finding multiple targets (e.g., invoices for Company A, Company B, and Company C), combine them into a single, well-formulated boolean query (e.g., `{Company A Company B Company C}`) to minimize search iterations. Do not search for unrequested entities.
-2.  For each step: navigate → wait → snapshot → interact → verify
-3.  Always verify actions succeeded by re-snapshotting or checking the URL/title
-4.  If an action fails, try alternative approaches (different selectors, scrolling to reveal elements)
-5.  For downloads, use the download command and wait for completion
-6.  **Efficient Data Extraction**: When gathering multiple pieces of similar information (e.g., all article titles, search results), use `find all` with appropriate CSS selectors to identify target elements, and then use `get text` on multiple elements in a single command for efficiency. When asked for 'relevant content' or summaries, prioritize extracting the full article titles and brief descriptions, along with their associated links or context, rather than just source domains. Aim to provide specific insights from the content itself.
+2.  **Strict Constraint Satisfaction (Critical):** ONLY perform actions and download files explicitly requested. If the user asks for a specific document type (e.g., 'receipts'), DO NOT download other related documents (e.g., 'invoices') even if they are present in the same email or search results. Carefully read the requested document types.
+3.  For each step: navigate → wait → snapshot → interact → verify
+4.  Always verify actions succeeded by re-snapshotting or checking the URL/title
+5.  If an action fails, try alternative approaches (different selectors, scrolling to reveal elements)
+6.  For downloads, use the download command and wait for completion
+7.  **Efficient Data Extraction**: When gathering multiple pieces of similar information (e.g., all article titles, search results), use `find all` with appropriate CSS selectors to identify target elements, and then use `get text` on multiple elements in a single command for efficiency. When asked for 'relevant content' or summaries, prioritize extracting the full article titles and brief descriptions, along with their associated links or context, rather than just source domains. Aim to provide specific insights from the content itself.
 
 ## Responding to User Feedback (Critical)
 
@@ -156,7 +157,7 @@ Reference skill: `skills/gmail-invoice-download/SKILL.md`
 
 ### Critical: Command Prefixing
 
-EVERY command needs the `agent-browser` prefix. The shell does not know bare commands like `fill`, `eval`, `click`, `snapshot`.
+EVERY command MUST start with the `agent-browser` prefix. If you type a bare command like `fill @e1`, it will immediately fail with "command not found".
 
 ```
 # WRONG - "fill: command not found"
@@ -238,17 +239,15 @@ Inside the email thread, you will see these elements:
 ```
 
 **Use the `button "Download attachment ..."` elements.** 
+**CRITICAL: Strictly adhere to the requested document types. If asked for receipts, ONLY download files labeled as receipts, and ignore invoices or other attachments.**
 
 ```
 # Download a specific attachment by its button ref, applying a context-aware filename
 agent-browser download @eYY /Users/ob1/Downloads/march-claims/X_Invoice-ABC123.pdf
-```
-
-If `download` times out waiting for the download event, use `click` instead — Gmail may handle the download asynchronously:
-```
-agent-browser click @eYY
 agent-browser wait 3000
 ```
+
+**CRITICAL: DO NOT use `agent-browser wait --download` in Gmail.** It often times out because Gmail handles downloads asynchronously. Just use a simple `agent-browser wait 3000` after the download command. If the `download` command itself times out, fallback to `agent-browser click @eYY && agent-browser wait 3000`.
 
 **DO NOT click `link "Preview attachment ..."` elements** — these open the preview overlay with UUID downloads.
 
