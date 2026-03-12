@@ -33,6 +33,9 @@ uv venv .venv && source .venv/bin/activate && uv pip install -e .
 
 # API keys
 export GEMINI_API_KEY="your-key"
+
+# Update the download directory in the agent's system prompt to match your machine
+# Edit agent-backend/agent-config/system_prompt.md and replace /Users/ob1/Downloads/ with your own absolute path
 ```
 
 ## Usage

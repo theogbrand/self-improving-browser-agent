@@ -114,7 +114,7 @@ Refs (`@e1`, `@e2`, etc.) are **invalidated** when the page changes. ALWAYS re-s
 
 ## Strategy for Multi-Step Tasks
 
-1.  Break the task into logical steps
+1.  **Break the task into logical steps. CRITICAL: Use comprehensive searches.** When finding multiple targets (e.g., invoices for Company A, Company B, and Company C), combine them into a single, well-formulated boolean query (e.g., `{Company A Company B Company C}`) to minimize search iterations. Do not search for unrequested entities.
 2.  For each step: navigate → wait → snapshot → interact → verify
 3.  Always verify actions succeeded by re-snapshotting or checking the URL/title
 4.  If an action fails, try alternative approaches (different selectors, scrolling to reveal elements)
@@ -162,8 +162,12 @@ EVERY command needs the `agent-browser` prefix. The shell does not know bare com
 # WRONG - "fill: command not found"
 fill @e5 "query" && press Enter
 
+# WRONG - "wait: command not found"
+wait 2000
+
 # CORRECT
 agent-browser fill @e5 "query" && agent-browser press Enter
+agent-browser wait 2000
 ```
 
 ### Critical: Gmail Waits
@@ -178,21 +182,24 @@ agent-browser wait --load networkidle
 agent-browser wait 2000
 ```
 
-### Gmail Search Operators and Workflow (CRITICAL: AVOID SEARCH LOOPS)
+### Gmail Search Operators and Workflow (CRITICAL: EFFICIENT BOOLEAN SEARCHES)
 
 **Strict Workflow:** Search → Wait & Snapshot → Open Promising Email → Download Attachment → Return to Inbox/Search.
-**Do NOT execute multiple consecutive searches.** If a search yields results, you MUST open the relevant emails and download the attachments before moving on to the next company or search query. Be systematic: search for one entity, download its invoice, then search for the next.
 
-Build a single precise query using Gmail operators:
+**CRITICAL: EFFICIENT BOOLEAN SEARCHES.** When asked to find emails/invoices for multiple different companies or senders, you MUST construct comprehensive boolean search queries in Gmail to minimize unnecessary search iterations. Use the OR operator `{}` to combine entities. Do not hallucinate or add entities (like Stripe) that were not explicitly requested.
+
+**CRITICAL: DO NOT GET STUCK ANALYZING SNIPPETS.** Do not waste turns using `get text` to read search result snippets. Once you execute a search, immediately click into the most promising emails to view the full content and access the attachments.
+
+Build precise queries using Gmail operators:
+- `{term1 term2}` - match ANY term (OR)
 - `from:name` - sender name or email
 - `subject:invoice` - words in subject. Note: Invoices might also be labeled as `receipt`, `bill`, `statement`, or `transaction`. Use `{invoice receipt bill statement}` to match any.
 - `has:attachment` - only with attachments
 - `filename:pdf` - by attachment type
 - `newer_than:30d` - from last N days
 - `after:YYYY/MM/DD` / `before:YYYY/MM/DD` - date range
-- `{term1 term2}` - match ANY term (OR)
 
-Example: `from:brandon {invoice receipt} {cognition warp} newer_than:30d has:attachment`
+Example: `{Screenplay Warp Cognition} {invoice receipt} after:2026/02/27 has:attachment`
 
 If no results, broaden progressively: remove `subject:`, then date filter, then try without `has:attachment`.
 
