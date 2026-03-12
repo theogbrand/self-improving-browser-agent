@@ -1,19 +1,19 @@
 # Self Improving Browser Agent
 
-A browser agent that improves itself through human feedback. On failure, you provide feedback and a meta-agent rewrites the agent's own system prompt and config — no retraining, just a loop of execution, feedback, and self-revision.
+A browser agent that improves itself through human feedback. When the agent goes wrong, you can intervene with realtime feedback, and a meta-agent rewrites the agent's system prompt and config to improve it for the next run. This loop of execution, feedback, and self-revision helps the agent get better at more tasks over time, and also allows users to get better at collaboration with the agent.
 
 ## Architecture
 
 ```
 You (CLI) ──> Orchestrator (Python) ──> Browser Agent (TS + Gemini) ──> Chrome via CDP
                   │                              │
-                  │ on failure:                  └──> traces/*.jsonl
+                  │ when the agent goes wrong:                  └──> traces/*.jsonl
                   │ human feedback
                   v
              Improver ──> rewrites system_prompt.md & config.json
 ```
 
-The orchestrator runs up to 3 attempts (1 initial + 2 improvements) currently but this can be configured based on CLI arguments. Each improvement cycle incorporates your feedback to rewrite the agent's configuration before retrying.
+The orchestrator runs up to 3 attempts (1 initial + 2 improvements) currently but this can be configured with CLI arguments. Each improvement cycle incorporates your feedback to rewrite the agent's configuration before retrying.
 
 ## Setup
 
@@ -41,7 +41,7 @@ source .venv/bin/activate && python server.py   # http://localhost:8000
 
 # Terminal 3: Run a task
 cd agent-backend/orchestrator && source .venv/bin/activate
-python -m orchestrator "Go to Gmail and download this month's invoices for OpenAI, Claude.ai, Warp, Cognition" 
+python -m orchestrator "Go to Gmail and download this month's invoices (March 2026) for Screenplay Studios (Graphite), Warp.dev, Cognition Labs (Devin)" 
 ```
 
 ## Key Paths
